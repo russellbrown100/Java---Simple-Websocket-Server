@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        
+        <title>Test</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+    </head>
+    
+    <body>
+        
+        
+        <script type="text/javascript">  
+            
+
+            function connect() {         
+
+
+                console.log("connecting");
+   
+
+                wsocket = new WebSocket("wss://www.rbtrading.ca:74");  
+
+                wsocket.onopen = onopen;
+                wsocket.onmessage = onmessage;
+                wsocket.onclose = onclose; 
+
+
+            }
+
+            function onopen() {
+                console.log("open");
+
+                //alert("websocket opened");
+
+            }
+
+
+            function onmessage(event) { 
+
+
+                console.log("message: " + event);
+
+
+            }
+
+
+            function onclose(e) {
+                              console.log("closed");
+            }
+
+            window.addEventListener("load", connect, false);                
+
+            
+        </script>
+        
+        
+  
+        Hello World
+  
+        
+            
+    </body>
+</html>

@@ -1,0 +1,474 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package WS_Server_test_1;
+
+
+import java.io.*;
+import java.net.*;
+import java.security.*;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.net.ssl.*;
+import javax.xml.bind.DatatypeConverter;
+
+
+
+public class Server {
+
+    
+    public static String GetFileContents(String filename)
+    {
+        String result = "";
+
+        try
+        {
+            
+            String application_name = System.getProperty("user.dir");
+            
+            application_name = application_name.substring(application_name.lastIndexOf("\\")+1, application_name.length());
+            
+            
+           String path = System.getProperty("user.dir") + "\\src\\" + application_name + "\\" + filename;
+           RandomAccessFile f = new RandomAccessFile(path, "rw");
+           
+
+           while (true)
+           {
+               byte[] data = new byte[1000];
+               int size = f.read(data);
+
+
+               if (size == -1) 
+               {
+                   break;
+               }
+
+               result += ConvertByteArrayToString(data, size);
+
+           }
+
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+
+        return result;
+    }
+    
+    
+    public static String ConvertByteArrayToString(byte[] data, int size)
+    {
+        String result = "";
+
+        for (int i = 0; i < size; i++)
+        {
+            result += (char)data[i];
+        }
+
+        return result;
+    }
+    
+    public static void SendResponse(BufferedOutputStream bout, String filename)
+    {
+        try
+        {
+            String response = GetFileContents(filename);
+
+            int responseLength = response.length();
+
+            // send HTTP Headers
+            bout.write(new String("HTTP/1.1 200 OK" + "\n").getBytes());
+            bout.write(new String("Server: RBPersonals_veresion4" + "\n").getBytes());
+            bout.write(new String("Date: " + new Date() + "\n").getBytes());
+            bout.write(new String("Content-type: " + "text/html" + "\n").getBytes());
+            bout.write(new String("Content-length: " + responseLength + "\n").getBytes());
+            bout.write(new String("\n").getBytes()); 
+            bout.flush(); 
+
+            bout.write(response.getBytes(), 0, responseLength);
+            bout.flush();
+
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+    }
+    
+    
+    
+    public static void HandleAccept(SSLSocket socket)
+    {
+        try
+        {
+            new Thread(() -> 
+            {
+
+
+                    while (true)
+                    {
+
+                        try
+                        {
+
+
+                            if (socket.isClosed() == true || socket.isConnected() == false || socket.isInputShutdown() == true ||
+                                    socket.isOutputShutdown() == true) 
+                            {                                            
+                                break;
+                            } 
+
+                            BufferedInputStream bis = new BufferedInputStream(socket.getInputStream());
+                            BufferedOutputStream bout = new BufferedOutputStream(socket.getOutputStream());
+
+                            
+
+                            String input = "";
+
+                            boolean complete = false;
+
+
+                            while (true)
+                            {
+                                if (socket.isClosed()) break;
+
+
+
+                                byte[] data = new byte[10000];
+                                int size = bis.read(data);
+                                if (size == -1) break;
+
+                                for (int i = 0; i < size; i++)
+                                {
+                                    char c = (char)data[i];
+
+                                    if (c != '\n')
+                                    {                                            
+                                        input += c;
+                                    }
+                                    else
+                                    {
+                                        if (input.length() > 0)
+                                        {
+                                            System.out.println(input);
+                                            
+                                            if (input.contains("GET / HTTP/1.1"))
+                                            {
+                                                SendResponse(bout, "index.html");
+                                            }
+                                            else if (input.contains("GET /index.html HTTP/1.1"))
+                                            {
+                                                SendResponse(bout, "index.html");
+                                            }
+                                            
+
+
+                                            
+
+                                            complete = true;
+                                            break;
+                                        }
+                                    }
+
+                                }
+
+                                input = "";               
+
+                                if (complete == true) break;
+
+
+                            }
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            ex.printStackTrace();
+                        }
+
+                    }
+
+            }).start();
+
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+    }
+    
+    public static void StartServer(int port)
+    {
+        
+                
+        new Thread(() -> {
+            
+        
+        try
+        {
+            
+            String path = "C:\\Users\\.....\\Documents\\NetBeansProjects\\....." + "\\" + "www.rbtrading.ca.jks";
+
+            char[] storepass = ".....".toCharArray();
+            char[] keypass = ".....".toCharArray();
+            FileInputStream fIn = new FileInputStream(path);
+            KeyStore keystore = KeyStore.getInstance("JKS");
+            keystore.load(fIn, storepass);
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+            kmf.init(keystore, keypass);
+             
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+            tmf.init(keystore);
+                        
+                        
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(),
+            java.security.SecureRandom.getInstanceStrong());
+            SSLServerSocketFactory factory = ctx.getServerSocketFactory();
+            ServerSocket listener = factory.createServerSocket(port);  // 443
+            SSLServerSocket sslServerSocket = (SSLServerSocket) listener;
+            
+            while (true)
+            {
+
+                SSLSocket sslSocket = (SSLSocket)sslServerSocket.accept();
+
+
+                new Thread(() -> {
+
+                    HandleAccept(sslSocket);
+
+                }).start();
+
+            }
+            
+            
+            
+                
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+        }).start();
+    }
+    
+    
+    
+    private static void doHandShakeToInitializeWebSocketConnection(InputStream inputStream, OutputStream outputStream) throws UnsupportedEncodingException {
+        String data = new Scanner(inputStream,"UTF-8").useDelimiter("\\r\\n\\r\\n").next();
+        
+        System.out.println(data);
+
+        Matcher get = Pattern.compile("^GET").matcher(data);
+
+        if (get.find()) {
+            Matcher match = Pattern.compile("Sec-WebSocket-Key: (.*)").matcher(data);
+            
+            match.find();                 
+
+            byte[] response = null;
+            try {
+                response = ("HTTP/1.1 101 Switching Protocols\r\n"
+                        + "Connection: Upgrade\r\n"
+                        + "Upgrade: websocket\r\n"
+                        + "Sec-WebSocket-Accept: "
+                        + DatatypeConverter.printBase64Binary(
+                                MessageDigest
+                                .getInstance("SHA-1")
+                                .digest((match.group(1) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+                                        .getBytes("UTF-8")))
+                        + "\r\n\r\n")
+                        .getBytes("UTF-8");
+            } catch (NoSuchAlgorithmException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+
+            try {
+                outputStream.write(response, 0, response.length);
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        } else {
+
+        }
+    }
+   
+    public static void StartWebsocketServer(int port)
+    {
+        
+            
+        new Thread(() -> {
+            try
+            {
+
+
+                ServerSocket server = new ServerSocket(port, 0, InetAddress.getByName("0.0.0.0"));
+
+                while (true)
+                {
+
+                    Socket clientSocket = server.accept(); 
+
+
+                    InputStream inputStream = clientSocket.getInputStream();
+                    OutputStream outputStream = clientSocket.getOutputStream();
+                    
+                    
+                    
+                    
+                    
+                    int cnt = 0;
+                    while (true)
+                    {                  
+                        char c = (char)inputStream.read();
+                        System.out.print(c);
+                        cnt++;
+
+                     if (inputStream.available() == 0) break;
+                    }
+                    
+                    System.out.println("end of data");
+                    System.out.println(cnt + " bytes read.");
+                    
+                    
+                    /*
+                    int cnt = 0;
+                    ArrayList list = new ArrayList();
+                    while (true)
+                    {                  
+                        byte b = (byte)inputStream.read();
+                        cnt++;
+                        list.add(b);
+                     if (inputStream.available() == 0) break;
+                    }
+                    
+                    System.out.println("end of data");
+                    System.out.println(cnt + " bytes read.");
+                    
+                    byte[] bytes = new byte[list.size()];
+                    for (int i = 0; i < list.size(); i++)
+                    {
+                        bytes[i] = (byte)list.get(i);
+                    }
+                    System.out.println(new String(bytes));
+                    */
+                    
+                    
+
+    //              Matcher match = Pattern.compile("Sec-WebSocket-Key: (.*)").matcher(data);
+    //              doHandShakeToInitializeWebSocketConnection(inputStream, outputStream);
+
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                ex.printStackTrace();
+            }
+        }).start();
+        
+    }
+    
+    
+    public static void StartWebsocketServer_version2(int port)
+    {
+        
+                
+        new Thread(() -> {
+            
+        
+        try
+        {
+            
+            String path = "C:\\Users\\Administrator\\Documents\\NetBeansProjects\\HelloSSLServer" + "\\" + "www.rbtrading.ca.jks";
+
+            char[] storepass = "password".toCharArray();
+            char[] keypass = "password".toCharArray();
+            FileInputStream fIn = new FileInputStream(path);
+            KeyStore keystore = KeyStore.getInstance("JKS");
+            keystore.load(fIn, storepass);
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+            kmf.init(keystore, keypass);
+             
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+            tmf.init(keystore);
+                        
+                        
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(),
+            java.security.SecureRandom.getInstanceStrong());
+            SSLServerSocketFactory factory = ctx.getServerSocketFactory();
+            ServerSocket listener = factory.createServerSocket(port, 0, InetAddress.getByName("0.0.0.0"));  
+            SSLServerSocket sslServerSocket = (SSLServerSocket) listener;
+            
+            
+            
+            while (true)
+            {
+
+                SSLSocket sslSocket = (SSLSocket)sslServerSocket.accept();
+                
+
+                System.out.println("client accepted");
+                
+                InputStream inputStream = sslSocket.getInputStream();
+                
+                
+    //              Matcher match = Pattern.compile("Sec-WebSocket-Key: (.*)").matcher(data);
+    //              doHandShakeToInitializeWebSocketConnection(inputStream, outputStream);
+
+                
+                System.out.println(inputStream.available() + " bytes available.");
+
+            }
+            
+            
+            
+                
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+        }).start();
+    }
+    
+    
+    
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args) {
+        // TODO code application logic here
+        
+        // reads from a standard Socket
+        // 517 bytes returned
+        // encoded - must catch websocket-key
+        StartWebsocketServer(74);
+       
+       
+       // reads from an SSLSocket
+       // 0 bytes returned
+       //StartWebsocketServer_version2(74);
+        
+        
+         StartServer(443);
+         
+         
+        
+        
+    }
+    
+}
